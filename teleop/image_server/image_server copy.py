@@ -156,9 +156,9 @@ class ImageServer:
         # }
         print(config)
         self.fps = config.get('fps', 30)
-        self.head_camera_type = config.get('head_camera_type', 'opencv')
+        self.head_camera_type = config.get('head_camera_type', 'realsense')
         self.head_image_shape = config.get('head_camera_image_shape', [480, 640])      # (height, width)
-        self.head_camera_id_numbers = config.get('head_camera_id_numbers', [2])
+        self.head_camera_id_numbers = config.get('head_camera_id_numbers', [135622077941])
 
         self.wrist_camera_type = config.get('wrist_camera_type', None)
         self.wrist_image_shape = config.get('wrist_camera_image_shape', None)    # (height, width)
@@ -332,9 +332,9 @@ class ImageServer:
 if __name__ == "__main__":
     config = {
             'fps':30,                                                          # frame per second
-            'head_camera_type': 'opencv',                                     # opencv or realsense
+            'head_camera_type': 'realsense',                                     # opencv or realsense
             'head_camera_image_shape': [480, 640],                           # Head camera resolution  [height, width]
-            'head_camera_id_numbers': [2],                                    # '/dev/video0' (opencv)
+            'head_camera_id_numbers': [135622077941],                                    # '/dev/video0' (opencv)
             # 'wrist_camera_type': 'realsense', 
             # 'wrist_camera_image_shape': [480, 640],                           # Wrist camera resolution  [height, width]
             # 'wrist_camera_id_numbers': ["218622271789", "241222076627"],      # realsense camera's serial number

@@ -113,22 +113,16 @@ class TeleVision:
                     left_dist = np.linalg.norm(left_lm[4] - left_lm[8])
                     right_dist = np.linalg.norm(right_lm[4] - right_lm[8])
 
-                    left_wrist = self.left_hand[:3, 3]
-                    right_wrist = self.right_hand[:3, 3]
-
                     font_scale = 1.0
-                    thickness = 2
+                    thickness = 3
                     text_color_left = (255, 0, 0)
                     text_color_right = (0, 0, 255)
 
                     x = 30
                     y_center = self.img_height // 2
 
-                    cv2.putText(display_image, f"L: {left_dist:.3f} m", (x, y_center - 40), cv2.FONT_HERSHEY_SIMPLEX, font_scale, text_color_left, thickness)
-                    cv2.putText(display_image, f"R: {right_dist:.3f} m", (x, y_center + 80), cv2.FONT_HERSHEY_SIMPLEX, font_scale, text_color_right, thickness)
-
-                    cv2.putText(display_image, f"L Wrist: ({left_wrist[0]:.2f}, {left_wrist[1]:.2f}, {left_wrist[2]:.2f})", (x, y_center - 10), cv2.FONT_HERSHEY_SIMPLEX, font_scale * 0.5, text_color_left, thickness )
-                    cv2.putText(display_image, f"R Wrist: ({right_wrist[0]:.2f}, {right_wrist[1]:.2f}, {right_wrist[2]:.2f})", (x, y_center + 40), cv2.FONT_HERSHEY_SIMPLEX, font_scale * 0.5, text_color_right, thickness )
+                    cv2.putText(display_image, f"L: {left_dist:.3f} m", (x, y_center - 20), cv2.FONT_HERSHEY_SIMPLEX, font_scale, text_color_left, thickness)
+                    cv2.putText(display_image, f"R: {right_dist:.3f} m", (x, y_center + 30), cv2.FONT_HERSHEY_SIMPLEX, font_scale, text_color_right, thickness)
 
                 except Exception as e:
                     print(f"Distance overlay error: {e}")

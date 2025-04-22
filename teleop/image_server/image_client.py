@@ -8,7 +8,7 @@ from multiprocessing import shared_memory
 
 class ImageClient:
     def __init__(self, tv_img_shape = None, tv_img_shm_name = None, wrist_img_shape = None, wrist_img_shm_name = None, 
-                       image_show = False, server_address = "192.168.123.164", port = 5555, Unit_Test = False):
+                       image_show = True, server_address = "127.0.0.1", port = 5555, Unit_Test = False):
         """
         tv_img_shape: User's expected head camera resolution shape (H, W, C). It should match the output of the image service terminal.
 
@@ -131,10 +131,12 @@ class ImageClient:
 
         print("\nImage client has started, waiting to receive data...")
         try:
+            #print(self.running)
             while self.running:
                 # Receive message
                 message = self._socket.recv()
                 receive_time = time.time()
+                #print("running")
 
                 if self._enable_performance_eval:
                     header_size = struct.calcsize('dI')
@@ -163,6 +165,7 @@ class ImageClient:
                     np.copyto(self.wrist_img_array, np.array(current_image[:, -self.wrist_img_shape[1]:]))
                 
                 if self._image_show:
+                    #print("image")
                     height, width = current_image.shape[:2]
                     resized_image = cv2.resize(current_image, (width // 2, height // 2))
                     cv2.imshow('Image Client Stream', resized_image)
@@ -178,11 +181,12 @@ class ImageClient:
         except Exception as e:
             print(f"[Image Client] An error occurred while receiving data: {e}")
         finally:
+            print("finally")
             self._close()
 
 if __name__ == "__main__":
     # example1
-    # tv_img_shape = (480, 1280, 3)
+    # tv_img_shape = (480, 848, 3)
     # img_shm = shared_memory.SharedMemory(create=True, size=np.prod(tv_img_shape) * np.uint8().itemsize)
     # img_array = np.ndarray(tv_img_shape, dtype=np.uint8, buffer=img_shm.buf)
     # img_client = ImageClient(tv_img_shape = tv_img_shape, tv_img_shm_name = img_shm.name)
@@ -190,6 +194,6 @@ if __name__ == "__main__":
 
     # example2
     # Initialize the client with performance evaluation enabled
-    # client = ImageClient(image_show = True, server_address='127.0.0.1', Unit_Test=True) # local test
-    client = ImageClient(image_show = True, server_address='192.168.123.164', Unit_Test=False) # deployment test
+    client = ImageClient(image_show = True, server_address='127.0.0.1', Unit_Test=False) # local test
+    #client = ImageClient(image_show = True, server_address='192.168.123.164', Unit_Test=False) # deployment test
     client.receive_process()
