@@ -99,9 +99,13 @@ class VuerTeleop:
                                      rotations.quaternion_from_matrix(right_wrist_mat[:3, :3])[[1, 2, 3, 0]]])
         left_qpos = self.left_retargeting.retarget(left_hand_mat[tip_indices])[[4, 5, 6, 7, 10, 11, 8, 9, 0, 1, 2, 3]]
         right_qpos = self.right_retargeting.retarget(right_hand_mat[tip_indices])[[4, 5, 6, 7, 10, 11, 8, 9, 0, 1, 2, 3]]
-        thumb_tip = left_qpos[4] 
-        index_tip = left_qpos[8]
+        # thumb_tip = left_qpos[4]
+        # index_tip = left_qpos[9]
+        # distance = float(np.linalg.norm(thumb_tip - index_tip))
+        thumb_tip = left_hand_mat[tip_indices][0]  # Thumb tip (3D position)
+        index_tip = left_hand_mat[tip_indices][1]  # Index finger tip (3D position)
         distance = float(np.linalg.norm(thumb_tip - index_tip))
+        #print("distance:", distance)
         return head_rmat, left_pose, right_pose, left_qpos, right_qpos, distance
 
 class Sim:
@@ -133,6 +137,7 @@ class Sim:
 
         left_position = np.array(left_pose[:3])
         left_orientation = np.array(left_pose[3:6])
+        # left_orientation[0] -= 90  # 偏移 roll 90 度，讓手掌方向對應到夾爪朝下
         self.distance = distance
 
         if self.status == "Inactive":
@@ -153,13 +158,9 @@ class Sim:
             else:
                 self.displacement = np.array([0.0, 0.0, 0.0, 0.0, 0.0, 0.0])
                 
-
             self.previous_pose = left_position
             self.publisher.publish_displacement(self.displacement.tolist())
             self.publisher.publish_finger(self.distance)
-
-
-
 
         left_image, right_image = self.camera_system.get_frames()
         if left_image is None or right_image is None:
@@ -172,10 +173,9 @@ class Sim:
                 f"Left: x={left_pose[0]:.2f}",
                 f"y={left_pose[1]:.2f}",
                 f"z={left_pose[2]:.2f}",
-                f"left_qpos={left_qpos[0]:.2f}",
                 # f"index={left_qpos[0]:.2f}",
                 # f"thumb={left_qpos[6]:.2f}",
-                f"width={left_qpos[6]-left_qpos[0]:.2f}"
+                f"width={distance:.2f}"
                 # f"displacement={self.displacement}"
             ]
             for i, line in enumerate(left_text):

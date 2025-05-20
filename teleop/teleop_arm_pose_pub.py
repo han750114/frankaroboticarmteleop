@@ -21,7 +21,7 @@ class DisplacementPublisher(Node):
   def __init__(self):
       super().__init__('displacement_publisher')
       self.publisher = self.create_publisher(Float32MultiArray, '/displacement', 10)
-      self.publisher2 = self.create_publisher(Float32, '/finger', 10)
+      self.publisher2 = self.create_publisher(Float32MultiArray, '/finger', 10)
       self.timer = self.create_timer(1/120, self.publish_displacement)
       self.timer_finger = self.create_timer(1/120, self.publish_finger)
 
@@ -31,9 +31,11 @@ class DisplacementPublisher(Node):
         self.publisher.publish(msg)
         self.get_logger().info(f'Published displacement: {displacement}')
   def publish_finger(self,distance):
-    msg = Float32()
-    msg.data = distance
-    self.publisher2.publish(msg)
+    landmarks = self.tv.right_landmarks
+    thumb_tip = landmarks[4]
+    index_tip = landmarks[8]
+    distance = float(np.linalg.norm(thumb_tip - index_tip))
+    self.publisher2.publish(distance)
     self.get_logger().info(f'Published left finger data: {distance}')
 
 
@@ -99,10 +101,8 @@ class VuerTeleop:
                                      rotations.quaternion_from_matrix(right_wrist_mat[:3, :3])[[1, 2, 3, 0]]])
         left_qpos = self.left_retargeting.retarget(left_hand_mat[tip_indices])[[4, 5, 6, 7, 10, 11, 8, 9, 0, 1, 2, 3]]
         right_qpos = self.right_retargeting.retarget(right_hand_mat[tip_indices])[[4, 5, 6, 7, 10, 11, 8, 9, 0, 1, 2, 3]]
-        thumb_tip = left_qpos[4] 
-        index_tip = left_qpos[8]
-        distance = float(np.linalg.norm(thumb_tip - index_tip))
-        return head_rmat, left_pose, right_pose, left_qpos, right_qpos, distance
+
+        return head_rmat, left_pose, right_pose, left_qpos, right_qpos
 
 class Sim:
     def __init__(self, print_freq=True):
@@ -117,13 +117,12 @@ class Sim:
         self.status = "Inactive"
         self.displacement = np.array([0.0, 0.0, 0.0, 0.0, 0.0, 0.0])
         self.left_finger = np.zeros(12)
-        self.previous_pose = np.array([-0.45, 0.25,1.6]) #np.array([-0.45, 0.16, 1.34])
-        self.distance = 0.0
+        self.previous_pose = np.array([-0.45, 0.17, 1.17])
         #new
         #self.gripper_threshold = 0.5
 
 
-    def step(self, head_rmat, left_pose, right_pose, left_qpos, left_finger, distance):
+    def step(self, head_rmat, left_pose, right_pose, left_qpos, left_finger):
         if self.print_freq:
             start = time.time()
         #print("left_pose",left_pose)
@@ -133,8 +132,7 @@ class Sim:
 
         left_position = np.array(left_pose[:3])
         left_orientation = np.array(left_pose[3:6])
-        self.distance = distance
-
+        
         if self.status == "Inactive":
             if np.all(np.abs(left_position - self.target_pose) <= self.threshold):
                 self.status = "Active"
@@ -149,14 +147,20 @@ class Sim:
                 displacement_orien = left_orientation - self.active_orientation
                 self.displacement = np.concatenate(( displacement_posi, displacement_orien))
                 self.left_finger = np.array(left_qpos)
+                #self.left_finger = np.mean(left_qpos)
+                #self.left_finger = left_qpos
+                #print("left finger qpos",self.left_finger)
+
 
             else:
                 self.displacement = np.array([0.0, 0.0, 0.0, 0.0, 0.0, 0.0])
                 
 
             self.previous_pose = left_position
+            #self.publisher.publish_displacement(self.displacement)
+            #self.publisher.publish_finger(self.left_finger)
             self.publisher.publish_displacement(self.displacement.tolist())
-            self.publisher.publish_finger(self.distance)
+            self.publisher.publish_finger(self.left_finger.tolist())
 
 
 
@@ -172,11 +176,8 @@ class Sim:
                 f"Left: x={left_pose[0]:.2f}",
                 f"y={left_pose[1]:.2f}",
                 f"z={left_pose[2]:.2f}",
-                f"left_qpos={left_qpos[0]:.2f}",
-                # f"index={left_qpos[0]:.2f}",
-                # f"thumb={left_qpos[6]:.2f}",
-                f"width={left_qpos[6]-left_qpos[0]:.2f}"
-                # f"displacement={self.displacement}"
+                f"index={left_qpos[0]:.2f}",
+                f"thumb={left_qpos[6]:.2f}"
             ]
             for i, line in enumerate(left_text):
                 cv2.putText(left_image, line, (400, 300 + i * 50), 
@@ -192,9 +193,9 @@ class Sim:
                     f"yaw={self.displacement[5]:.2f}"
                 ]
                 #print("dispace", displacement_text)
-                # for i, line in enumerate(displacement_text):
-                #     cv2.putText(right_image, line, (600, 300 + i * 50), 
-                #                 cv2.FONT_HERSHEY_SIMPLEX, 1, (0, 255, 0), 2)
+                for i, line in enumerate(displacement_text):
+                    cv2.putText(right_image, line, (600, 300 + i * 50), 
+                                cv2.FONT_HERSHEY_SIMPLEX, 1, (0, 255, 0), 2)
             else:
                 right_text = [
                     f"Left: roll={left_pose[4] + 0.45:.2f}",
@@ -235,10 +236,10 @@ if __name__ == '__main__':
             raise RuntimeError("Camera initialization failed")
 
         while True:
-            head_rmat, left_pose, right_pose, left_qpos, right_qpos, distance = teleoperator.step()
-            left_img, right_img = simulator.step(head_rmat, left_pose, right_pose, left_qpos, right_qpos, distance)
+            head_rmat, left_pose, right_pose, left_qpos, right_qpos = teleoperator.step()
+            left_img, right_img = simulator.step(head_rmat, left_pose, right_pose, left_qpos, right_qpos)
             #left_img, right_img = simulator.step(head_rmat, left_pose, right_pose, left_qpos, right_qpos)
-            result = simulator.step(head_rmat, left_pose, right_pose, left_qpos, right_qpos, distance)
+            result = simulator.step(head_rmat, left_pose, right_pose, left_qpos, right_qpos)
 
             if left_img is not None and right_img is not None:
                 np.copyto(teleoperator.img_array, np.hstack((left_img, right_img)))

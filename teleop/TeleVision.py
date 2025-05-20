@@ -96,24 +96,44 @@ class OpenTeleVision:
 
     async def on_hand_move(self, event, session, fps=60):
         try:
-            # with self.left_hand_shared.get_lock():  # Use the lock to ensure thread-safe updates
-            #     self.left_hand_shared[:] = event.value["leftHand"]
-            # with self.right_hand_shared.get_lock():
-            #     self.right_hand_shared[:] = event.value["rightHand"]
-            # with self.left_landmarks_shared.get_lock():
-            #     self.left_landmarks_shared[:] = np.array(event.value["leftLandmarks"]).flatten()
-            # with self.right_landmarks_shared.get_lock():
-            #     self.right_landmarks_shared[:] = np.array(event.value["rightLandmarks"]).flatten()
+            # left_landmarks = np.array(event.value["leftLandmarks"]).reshape(25, 3)
+            # right_landmarks = np.array(event.value["rightLandmarks"]).reshape(25, 3)
+
+            # self.left_hand_shared[:] = event.value["leftHand"]
+            # self.right_hand_shared[:] = event.value["rightHand"]
+            # self.left_landmarks_shared[:] = left_landmarks.flatten()
+            # self.right_landmarks_shared[:] = right_landmarks.flatten()
+
+            # # thumb to index distance
+            # left_distance = np.linalg.norm(left_landmarks[4] - left_landmarks[8])
+            # right_distance = np.linalg.norm(right_landmarks[4] - right_landmarks[8])
+            # print(f"Left hand thumb–index distance: {left_distance:.3f} m")
+            # print(f"Right hand thumb–index distance: {right_distance:.3f} m")
             self.left_hand_shared[:] = event.value["leftHand"]
             self.right_hand_shared[:] = event.value["rightHand"]
             self.left_landmarks_shared[:] = np.array(event.value["leftLandmarks"]).flatten()
             self.right_landmarks_shared[:] = np.array(event.value["rightLandmarks"]).flatten()
+            # Wrist pos and orientation
+            # left_hand_matrix = np.array(event.value["leftHand"]).reshape(4, 4, order="F")
+            # right_hand_matrix = np.array(event.value["rightHand"]).reshape(4, 4, order="F")
+
+            # left_pos = left_hand_matrix[:3, 3]
+            # right_pos = right_hand_matrix[:3, 3]
+
+            # from scipy.spatial.transform import Rotation as R
+            # left_quat = R.from_matrix(left_hand_matrix[:3, :3]).as_quat()
+            # right_quat = R.from_matrix(right_hand_matrix[:3, :3]).as_quat()
+
+            # print(f"Left Wrist Position: {left_pos}")
+            # print(f"Left Wrist Quaternion: {left_quat}")
+            # print(f"Right Wrist Position: {right_pos}")
+            # print(f"Right Wrist Quaternion: {right_quat}")
         except: 
             pass
     
     async def main_webrtc(self, session, fps=60):
         session.set @ DefaultScene(frameloop="always")
-        session.upsert @ Hands(fps=fps, stream=True, key="hands", showLeft=False, showRight=False)
+        session.upsert @ Hands(fps=fps, stream=True, key="hands", showLeft=True, showRight=True)
         session.upsert @ WebRTCStereoVideoPlane(
                 src="https://192.168.8.102:8080/offer",
                 key="zed",
@@ -125,7 +145,7 @@ class OpenTeleVision:
             await asyncio.sleep(1)
     
     async def main_image(self, session, fps=60):
-        session.upsert @ Hands(fps=fps, stream=True, key="hands", showLeft=False, showRight=False)
+        session.upsert @ Hands(fps=fps, stream=True, key="hands", showLeft=True, showRight=True)
         while True:
             # aspect = self.aspect_shared.value
             display_image = self.img_array

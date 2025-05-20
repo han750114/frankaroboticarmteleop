@@ -18,52 +18,13 @@ class Arm_IK:
         np.set_printoptions(precision=5, suppress=True, linewidth=200)
 
         # self.robot = pin.RobotWrapper.BuildFromURDF('../assets/h1_description/urdf/h1_with_hand.urdf', '../assets/h1_description/urdf')
-        self.robot = pin.RobotWrapper.BuildFromURDF('../../assets/h1_description/urdf/h1_with_hand.urdf', '../../assets/h1_description/') # for test
+        self.robot = pin.RobotWrapper.BuildFromURDF('../../assets/franka_description/urdf/franka.urdf', '../../assets/franka_description/') # for test
 
-        self.mixed_jointsToLockIDs = [  
-                                        "right_hip_roll_joint",
-                                        "right_hip_pitch_joint",
-                                        "right_knee_joint",
-                                        "left_hip_roll_joint",
-                                        "left_hip_pitch_joint",
-                                        "left_knee_joint",
-                                        "torso_joint",
-                                        "left_hip_yaw_joint",
-                                        "right_hip_yaw_joint",
+        self.mixed_jointsToLockIDs = [
+            "panda_finger_joint1",
+            "panda_finger_joint2"
+        ]
 
-                                        "left_ankle_joint",
-                                        "right_ankle_joint",
-
-                                        "L_index_proximal_joint",
-                                        "L_index_intermediate_joint",
-                                        "L_middle_proximal_joint",
-                                        "L_middle_intermediate_joint",
-                                        "L_ring_proximal_joint",
-                                        "L_ring_intermediate_joint",
-                                        "L_pinky_proximal_joint",
-                                        "L_pinky_intermediate_joint",
-                                        "L_thumb_proximal_yaw_joint",
-                                        "L_thumb_proximal_pitch_joint",
-                                        "L_thumb_intermediate_joint",
-                                        "L_thumb_distal_joint",
-                                        
-                                        "R_index_proximal_joint",
-                                        "R_index_intermediate_joint",
-                                        "R_middle_proximal_joint",
-                                        "R_middle_intermediate_joint",
-                                        "R_ring_proximal_joint",
-                                        "R_ring_intermediate_joint",
-                                        "R_pinky_proximal_joint",
-                                        "R_pinky_intermediate_joint",
-                                        "R_thumb_proximal_yaw_joint",
-                                        "R_thumb_proximal_pitch_joint",
-                                        "R_thumb_intermediate_joint",
-                                        "R_thumb_distal_joint",
-
-                                        "left_hand_joint",
-                                        "right_hand_joint"    
-                                      ]
-   
         self.reduced_robot = self.robot.buildReducedRobot(
             list_of_joints_to_lock=self.mixed_jointsToLockIDs,
             reference_configuration=np.array([0.0] * self.robot.model.nq),
@@ -74,21 +35,11 @@ class Arm_IK:
         #     print(f"Joint {i}: {joint_name}, ID: {joint.id}")
 
         self.reduced_robot.model.addFrame(
-            pin.Frame('L_ee',
-                      self.reduced_robot.model.getJointId('left_elbow_joint'),
-                      pin.SE3(np.eye(3),
-                              np.array([0.2605 + 0.05,0,0]).T),
-                      pin.FrameType.OP_FRAME)
+            pin.Frame('panda_ee',
+                self.reduced_robot.model.getJointId('panda_link8'),  # or 'panda_hand'
+                pin.SE3(np.eye(3), np.array([0, 0, 0.107]).T),  # offset if needed
+                pin.FrameType.OP_FRAME)
         )
-        
-        self.reduced_robot.model.addFrame(
-            pin.Frame('R_ee',
-                      self.reduced_robot.model.getJointId('right_elbow_joint'),
-                      pin.SE3(np.eye(3),
-                              np.array([0.2605 + 0.05,0,0]).T),
-                      pin.FrameType.OP_FRAME)
-        )
-        
 
         self.init_data = np.zeros(self.reduced_robot.model.nq)
 
@@ -138,26 +89,18 @@ class Arm_IK:
 
         # Creating symbolic variables
         self.cq = casadi.SX.sym("q", self.reduced_robot.model.nq, 1) 
-        self.cTf_l = casadi.SX.sym("tf_l", 4, 4)
-        self.cTf_r = casadi.SX.sym("tf_r", 4, 4)
-        cpin.framesForwardKinematics(self.cmodel, self.cdata, self.cq)
+        self.cTf = casadi.SX.sym("tf", 4, 4)
 
-        # Get the hand joint ID and define the error function
-        self.L_hand_id = self.reduced_robot.model.getFrameId("L_ee")
-        self.R_hand_id = self.reduced_robot.model.getFrameId("R_ee")
         self.error = casadi.Function(
             "error",
-            [self.cq, self.cTf_l, self.cTf_r],
+            [self.cq, self.cTf],
             [
                 casadi.vertcat(
                     cpin.log6(
-                        self.cdata.oMf[self.L_hand_id].inverse() * cpin.SE3(self.cTf_l)
-                    ).vector[:3],
-                    cpin.log6(
-                        self.cdata.oMf[self.R_hand_id].inverse() * cpin.SE3(self.cTf_r)
+                        self.cdata.oMf[self.ee_id].inverse() * cpin.SE3(self.cTf)
                     ).vector[:3]
                 )
-            ],
+            ]
         )
 
         # Defining the optimization problem
@@ -239,7 +182,7 @@ if __name__ == "__main__":
     # initial positon
     L_tf_target = pin.SE3(
         pin.Quaternion(1, 0, 0, 0),
-        np.array([0.3, +0.2, -3.0]),
+        np.array([0.3, +0.2, 0.2]),
     )
 
     R_tf_target = pin.SE3(

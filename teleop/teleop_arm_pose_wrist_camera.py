@@ -38,30 +38,41 @@ class DisplacementPublisher(Node):
 
 
 class USBCameraSystem:
-    def __init__(self, camera_id=0, resolution=(720, 1280)):
+    def __init__(self, left_camera_id=0, right_camera_id=4, resolution=(720, 1280)):
         self.resolution = resolution
-        self.cam = cv2.VideoCapture(camera_id)
+        self.left_cam = cv2.VideoCapture(left_camera_id)
+        self.right_cam = cv2.VideoCapture(right_camera_id)
 
-        if not self.cam.isOpened():
-            raise RuntimeError(f"Failed to open camera {camera_id}")
+        if not self.left_cam.isOpened():
+            raise RuntimeError(f"Failed to open left camera {left_camera_id}")
+        if not self.right_cam.isOpened():
+            raise RuntimeError(f"Failed to open right camera {right_camera_id}")
 
-        self.cam.set(cv2.CAP_PROP_FRAME_WIDTH, resolution[1])
-        self.cam.set(cv2.CAP_PROP_FRAME_HEIGHT, resolution[0])
+        for cam in [self.left_cam, self.right_cam]:
+            cam.set(cv2.CAP_PROP_FRAME_WIDTH, resolution[1])
+            cam.set(cv2.CAP_PROP_FRAME_HEIGHT, resolution[0])
 
     def get_frames(self):
-        ret, frame = self.cam.read()
-        if not ret:
-            print("Failed to capture frame from camera")
+        ret_l, left_frame = self.left_cam.read()
+        ret_r, right_frame = self.right_cam.read()
+
+        if not ret_l or not ret_r:
+            print("Failed to capture frame(s) from camera(s)")
             return None, None
 
-        if frame.shape[:2] != self.resolution:
-            frame = cv2.resize(frame, (self.resolution[1], self.resolution[0]))
+        if left_frame.shape[:2] != self.resolution:
+            left_frame = cv2.resize(left_frame, (self.resolution[1], self.resolution[0]))
+        if right_frame.shape[:2] != self.resolution:
+            right_frame = cv2.resize(right_frame, (self.resolution[1], self.resolution[0]))
 
-        frame = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
-        return frame.copy(), frame.copy()
+        left_frame = cv2.cvtColor(left_frame, cv2.COLOR_BGR2RGB)
+        right_frame = cv2.cvtColor(right_frame, cv2.COLOR_BGR2RGB)
+
+        return left_frame.copy(), right_frame.copy()
 
     def release(self):
-        self.cam.release()
+        self.left_cam.release()
+        self.right_cam.release()
 
 
 class VuerTeleop:
@@ -99,9 +110,13 @@ class VuerTeleop:
                                      rotations.quaternion_from_matrix(right_wrist_mat[:3, :3])[[1, 2, 3, 0]]])
         left_qpos = self.left_retargeting.retarget(left_hand_mat[tip_indices])[[4, 5, 6, 7, 10, 11, 8, 9, 0, 1, 2, 3]]
         right_qpos = self.right_retargeting.retarget(right_hand_mat[tip_indices])[[4, 5, 6, 7, 10, 11, 8, 9, 0, 1, 2, 3]]
-        thumb_tip = left_qpos[4] 
-        index_tip = left_qpos[8]
+        # thumb_tip = left_qpos[4]
+        # index_tip = left_qpos[9]
+        # distance = float(np.linalg.norm(thumb_tip - index_tip))
+        thumb_tip = left_hand_mat[tip_indices][0]  # Thumb tip (3D position)
+        index_tip = left_hand_mat[tip_indices][1]  # Index finger tip (3D position)
         distance = float(np.linalg.norm(thumb_tip - index_tip))
+        #print("distance:", distance)
         return head_rmat, left_pose, right_pose, left_qpos, right_qpos, distance
 
 class Sim:
@@ -111,7 +126,7 @@ class Sim:
         self.print_freq = print_freq
         self.target_pose = np.array([-0.4, 0.08, 1.1]) 
         self.threshold = 0.1
-        self.camera_system = USBCameraSystem()
+        self.camera_system = USBCameraSystem(left_camera_id=0, right_camera_id=4) 
         self.active_position = None
         self.active_orientation = None
         self.status = "Inactive"
@@ -133,6 +148,7 @@ class Sim:
 
         left_position = np.array(left_pose[:3])
         left_orientation = np.array(left_pose[3:6])
+        # left_orientation[0] -= 90  # 偏移 roll 90 度，讓手掌方向對應到夾爪朝下
         self.distance = distance
 
         if self.status == "Inactive":
@@ -153,13 +169,9 @@ class Sim:
             else:
                 self.displacement = np.array([0.0, 0.0, 0.0, 0.0, 0.0, 0.0])
                 
-
             self.previous_pose = left_position
             self.publisher.publish_displacement(self.displacement.tolist())
             self.publisher.publish_finger(self.distance)
-
-
-
 
         left_image, right_image = self.camera_system.get_frames()
         if left_image is None or right_image is None:
@@ -172,10 +184,9 @@ class Sim:
                 f"Left: x={left_pose[0]:.2f}",
                 f"y={left_pose[1]:.2f}",
                 f"z={left_pose[2]:.2f}",
-                f"left_qpos={left_qpos[0]:.2f}",
                 # f"index={left_qpos[0]:.2f}",
                 # f"thumb={left_qpos[6]:.2f}",
-                f"width={left_qpos[6]-left_qpos[0]:.2f}"
+                f"width={distance:.2f}"
                 # f"displacement={self.displacement}"
             ]
             for i, line in enumerate(left_text):
